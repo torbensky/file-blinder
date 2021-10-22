@@ -5,3 +5,5 @@ A general-purpose, simple utility for blinding files. Intended to help researche
 # Running
 
 `python blind.py`
+
+![image](https://user-images.githubusercontent.com/969644/138534150-b471d543-d865-48e6-9bb7-a3cb538093a2.png)
