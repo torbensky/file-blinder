@@ -68,13 +68,13 @@ args = parser.parse_args()
 
 if args.type == 'all-images-in-dir' or args.type == 'all-files-in-dir':
     if args.file_type == "":
-        print "Blinding all files in directory %s..." % (args.input_dir)
+        print("Blinding all files in directory %s..." % args.input_dir)
     else:
-        print "Blinding all '.%s' files in directory %s..." % (args.file_type, args.input_dir)
+        print("Blinding all '.%s' files in directory %s..." % (args.file_type, args.input_dir))
         
     blindAllFiles(args.input_dir, args.file_type or "*")
 elif args.type == 'group-by-prefix':
-    print "Blinding groups of files in directory %s..." % (args.input_dir)
+    print("Blinding groups of files in directory %s..." % args.input_dir)
     blindPrefixGroupedFiles(args.input_dir, args.file_type or "*")
 else:
-    print "Error: unrecognized 'type' argument - doing nothing :'("
+    print("Error: unrecognized 'type' argument - doing nothing :'(")
