@@ -5,7 +5,10 @@ import glob
 import string
 import random
 import shutil
-import argparse
+import tkinter as tk
+from tkinter import ttk
+from tkinter.filedialog import askdirectory
+from tkinter.messagebox import askyesno
 
 def appendToBlindCSV(filesDir, line):
     filename = os.path.join(filesDir, 'blind.csv')
@@ -36,8 +39,12 @@ def groupFilesByPrefix(files):
                 groups[groupName] = [file]
     return groups
 
-def blindPrefixGroupedFiles(filesDir, extension):
+def getApplicableFiles(filesDir, extension):
     allFiles = glob.glob(os.path.join(filesDir, "*.%s" % extension))
+    return allFiles
+
+def blindPrefixGroupedFiles(filesDir, extension):
+    allFiles = getApplicableFiles(filesDir, extension)
     groups = groupFilesByPrefix(allFiles)
     for group in groups:
         blindId = generateBlindId()
@@ -51,30 +58,158 @@ def blindPrefixGroupedFiles(filesDir, extension):
             appendToBlindCSV(filesDir, "%s,%s\n" % (os.path.basename(blindFile),blindId))
 
 def blindAllFiles(filesDir, extension):
-    for blindFile in glob.glob(os.path.join(filesDir, "*.%s" % extension)):
+    for blindFile in getApplicableFiles(filesDir, extension):
         actualExtension = os.path.splitext(blindFile)[1]
         blindId = generateBlindId()
         os.mkdir(os.path.join(filesDir, blindId))
-        shutil.copyfile(blindFile, os.path.join(filesDir, blindId, "%s.%s" % (blindId,actualExtension)))
+        shutil.copyfile(blindFile, os.path.join(filesDir, blindId, "%s%s" % (blindId,actualExtension)))
         appendToBlindCSV(filesDir, "%s,%s\n" % (os.path.basename(blindFile),blindId))
 
-parser = argparse.ArgumentParser(description='Blind a directory of files')
-parser.add_argument('input_dir', type=str, help='The path to a directory of files you want blinded')
-parser.add_argument('type', type=str, choices=['all-images-in-dir', 'all-files-in-dir', 'group-by-prefix'], help='The type of blinding to use')
-parser.add_argument('--fileType', type=str, dest='file_type', default="",
-                    help='The type of file to blind (default: any type of file)')
+input_dir = os.getcwd()
 
-args = parser.parse_args()
+MODES = [
+    'all-files-in-dir',
+    'group-by-prefix',
+]
 
-if args.type == 'all-images-in-dir' or args.type == 'all-files-in-dir':
-    if args.file_type == "":
-        print("Blinding all files in directory %s..." % args.input_dir)
+def updateAffectedFiles():
+    file_type = fileTypeCombo.get() or "*"
+    if file_type == "All file types":
+        file_type = "*"   
+    affected_files = getApplicableFiles(input_dir, file_type)
+    affected_files_list.delete(0,tk.END)
+    for file_name in affected_files:
+        affected_files_list.insert(tk.END, file_name)
+    
+
+def pick_file():
+    global input_dir
+    input_dir = askdirectory(initialdir=input_dir)
+    print('input_dir', input_dir)
+    input_dir_label.configure(text=input_dir)
+    if input_dir != "":
+        files = os.listdir(input_dir)
+        FileTypes = ['All file types']
+        for file_name in files:
+            parts = file_name.split(".")
+            if len(parts) == 1:
+                continue
+            ext = parts[-1]
+            if not ext in FileTypes:
+                FileTypes.append(ext)
+        fileTypeCombo.configure(values=FileTypes)
+        fileTypeCombo.current(0)
+        run_button["state"] = "normal"
+        updateAffectedFiles()
     else:
-        print("Blinding all '.%s' files in directory %s..." % (args.file_type, args.input_dir))
-        
-    blindAllFiles(args.input_dir, args.file_type or "*")
-elif args.type == 'group-by-prefix':
-    print("Blinding groups of files in directory %s..." % args.input_dir)
-    blindPrefixGroupedFiles(args.input_dir, args.file_type or "*")
-else:
-    print("Error: unrecognized 'type' argument - doing nothing :'(")
+        run_button["state"] = "disabled"
+
+def handleFileTypeChange(event):
+    updateAffectedFiles()
+
+
+def handleRun():
+    mode = modeCombo.get()
+    file_type = fileTypeCombo.get() or "*"
+    if file_type == "All file types":
+        file_type = "*"    
+
+    files_affected = len(getApplicableFiles(input_dir, file_type))
+
+    if file_type == "*":
+        prompt = "This will blind all files in directory %s\n\n" % (input_dir)
+    else:
+        prompt = "This will blind all '.%s' files in directory %s\n\n" % (file_type, input_dir)
+    prompt = "%s%s files will be blinded" % (prompt, files_affected)
+    prompt = "%s\n\nDo you want to continue?" % prompt
+
+    answer = askyesno(title='Confirmation',
+    message=prompt)
+    if not answer:
+        return
+
+    if mode == MODES[0]:
+        blindAllFiles(input_dir, file_type)
+    elif mode == MODES[1]:
+        blindPrefixGroupedFiles(input_dir, file_type)
+
+BG_PRIMARY = '#EDDEA4'
+FG_PRIMARY = '#0FA3B1'
+
+current_mode = 0
+
+app = tk.Tk()
+app.configure(bg=BG_PRIMARY)
+
+gui_style = ttk.Style()
+# gui_style.configure('My.TButton', foreground = '#334353')
+gui_style.configure('My.TFrame', background=BG_PRIMARY)
+
+frm = ttk.Frame(app, padding=20, style="My.TFrame")
+frm.grid()
+
+row_idx = 0
+
+# MODE
+modeLabel = tk.Label(frm,
+                    text = "1. Type of blinding mode",
+                    bg = BG_PRIMARY)
+modeLabel.grid(column=0, row=row_idx, sticky="w")
+modeCombo = ttk.Combobox(frm, 
+                        values=MODES,
+                        state="readonly",
+                        style="My.TCombobox")
+modeCombo.grid(column=1, row=row_idx)
+row_idx +=1
+modeCombo.current(0)
+
+# FILE PICKER
+label = tk.Label(frm,
+                    text = "2. Input directory with the files",
+                    wraplength=200,
+                    bg = BG_PRIMARY)
+label.grid(column=0, row=row_idx, sticky="w")
+pick_file_button = tk.Button(frm, text="Pick Input Directory", bg=FG_PRIMARY, command=pick_file)
+pick_file_button.grid(column=1, row=row_idx, sticky="nesw", pady=(20,0))
+row_idx +=1
+input_dir_label = tk.Label(frm,
+                    text = '',
+                    bg = BG_PRIMARY)
+input_dir_label.grid(column=0, columnspan=2, row=row_idx, sticky="e",pady=(0,20))
+row_idx += 1
+
+# FILE TYPE
+label = tk.Label(frm,
+                    text = "3. Type of files you want blinded",
+                    wraplength=200,
+                    bg = BG_PRIMARY)
+label.grid(column=0, row=row_idx, sticky="w")
+fileTypeCombo = ttk.Combobox(frm, 
+                            values=[])
+fileTypeCombo.grid(column=1, row=row_idx)
+fileTypeCombo.bind("<<ComboboxSelected>>", handleFileTypeChange)
+row_idx +=1
+
+# AFFECTED FILES
+# label.grid(column=0, row=row_idx, sticky="w")
+# row_idx += 1
+affected_files_list = tk.Listbox(frm, width=0, height=6)
+affected_files_list.grid(column=0, columnspan=2, row=row_idx, sticky="e")
+row_idx += 1
+
+# RUN
+run_button = tk.Button(frm, text="Run", bg=FG_PRIMARY, command=handleRun)
+run_button.grid(column=0, columnspan=2, row=row_idx, sticky="nesw", pady=(20,0))
+row_idx +=1
+run_button["state"] = "disabled"
+
+frm.mainloop()
+
+# parser = argparse.ArgumentParser(description='Blind a directory of files')
+# parser.add_argument('input_dir', type=str, help='The path to a directory of files you want blinded')
+# parser.add_argument('type', type=str, choices=['all-images-in-dir', 'all-files-in-dir', 'group-by-prefix'], help='The type of blinding to use')
+# parser.add_argument('--fileType', type=str, dest='file_type', default="",
+#                     help='The type of file to blind (default: any type of file)')
+
+# args = parser.parse_args()
+
